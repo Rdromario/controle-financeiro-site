@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Novo Lançamento - Controle Financeiro</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Controle Financeiro</h1>
+  <nav class="tabs">
+    <a href="index.html" class="active">Lançar</a>
+    <a href="resumo.html">Resumo</a>
+  </nav>
+</header>
+<main>
+  <div class="card">
+    <h2>Novo Lançamento</h2>
+    <form id="form">
+      <label for="data">Data</label>
+      <input type="date" id="data" required>
+
+      <label for="tipo">Tipo</label>
+      <select id="tipo" required>
+        <option value="">Selecione...</option>
+        <option>Renda</option>
+        <option>Gasto Fixo</option>
+        <option>Gasto Variável</option>
+      </select>
+
+      <label for="categoria">Categoria</label>
+      <select id="categoria" required disabled>
+        <option value="">Escolha o tipo primeiro</option>
+      </select>
+
+      <label for="descricao">Descrição</label>
+      <input type="text" id="descricao" placeholder="Ex: Internet - plano 500MB">
+
+      <label for="responsavel">Responsável</label>
+      <select id="responsavel"></select>
+
+      <label for="forma">Forma de pagamento</label>
+      <select id="forma"></select>
+
+      <label for="valor">Valor (R$)</label>
+      <input type="number" id="valor" step="0.01" min="0" placeholder="0,00" required>
+
+      <button type="submit" class="primary">Salvar lançamento</button>
+      <div id="msg" class="msg"></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Últimos lançamentos</h2>
+    <div id="recentes">Carregando...</div>
+  </div>
+
+  <button class="secondary" onclick="logout()" style="max-width:640px;margin:0 auto;display:block;">Sair</button>
+</main>
+<script src="app.js"></script>
+<script>
+requireAuth();
+
+const tipoEl = document.getElementById("tipo");
+const catEl = document.getElementById("categoria");
+const respEl = document.getElementById("responsavel");
+const formaEl = document.getElementById("forma");
+
+RESPONSAVEIS.forEach(r => respEl.appendChild(new Option(r, r)));
+FORMAS.forEach(f => formaEl.appendChild(new Option(f, f)));
+document.getElementById("data").valueAsDate = new Date();
+
+tipoEl.addEventListener("change", () => {
+  const lista = CATEGORIAS[tipoEl.value] || [];
+  catEl.innerHTML = "";
+  if (!lista.length) {
+    catEl.innerHTML = '<option value="">Escolha o tipo primeiro</option>';
+    catEl.disabled = true;
+    return;
+  }
+  catEl.disabled = false;
+  catEl.appendChild(new Option("Selecione...", ""));
+  lista.forEach(c => catEl.appendChild(new Option(c, c)));
+});
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById("msg");
+  const payload = {
+    data: document.getElementById("data").value,
+    tipo: tipoEl.value,
+    categoria: catEl.value,
+    descricao: document.getElementById("descricao").value,
+    responsavel: respEl.value,
+    forma_pagamento: formaEl.value,
+    valor: parseFloat(document.getElementById("valor").value)
+  };
+  try {
+    const res = await apiFetch("/api/lancamentos", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error("Falha ao salvar");
+    msg.className = "msg ok";
+    msg.textContent = "Lançamento salvo!";
+    document.getElementById("form").reset();
+    document.getElementById("data").valueAsDate = new Date();
+    catEl.innerHTML = '<option value="">Escolha o tipo primeiro</option>';
+    catEl.disabled = true;
+    carregarRecentes();
+  } catch (err) {
+    msg.className = "msg err";
+    msg.textContent = "Não foi possível salvar. Tente novamente.";
+  }
+});
+
+async function carregarRecentes() {
+  const el = document.getElementById("recentes");
+  try {
+    const res = await apiFetch("/api/lancamentos?limite=8");
+    const data = await res.json();
+    if (!data.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:13px;">Nenhum lançamento ainda.</p>';
+      return;
+    }
+    el.innerHTML = data.map(item => `
+      <div class="entry-row">
+        <div>
+          <div>${item.categoria} — ${formatBRL(item.valor)}</div>
+          <div class="desc">${item.data} · ${item.tipo} · ${item.responsavel}${item.descricao ? " · " + item.descricao : ""}</div>
+        </div>
+        <button class="del" onclick="excluir(${item.id})">excluir</button>
+      </div>
+    `).join("");
+  } catch (e) {
+    el.innerHTML = '<p style="color:#c62828;font-size:13px;">Erro ao carregar.</p>';
+  }
+}
+
+async function excluir(id) {
+  if (!confirm("Excluir este lançamento?")) return;
+  await apiFetch("/api/lancamentos/" + id, { method: "DELETE" });
+  carregarRecentes();
+}
+
+carregarRecentes();
+</script>
+</body>
+</html>

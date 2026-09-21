@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resumo - Controle Financeiro</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Controle Financeiro</h1>
+  <nav class="tabs">
+    <a href="index.html">Lançar</a>
+    <a href="resumo.html" class="active">Resumo</a>
+  </nav>
+</header>
+<main>
+  <div class="card">
+    <div class="filters">
+      <select id="mes"></select>
+      <select id="ano"></select>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Resumo do Mês</h2>
+    <div class="summary-grid">
+      <div>Total de Rendas</div><div class="val" id="v-renda">R$ 0,00</div>
+      <div>Total de Gastos Fixos</div><div class="val" id="v-fixo">R$ 0,00</div>
+      <div>Total de Gastos Variáveis</div><div class="val" id="v-var">R$ 0,00</div>
+      <div>Total de Gastos</div><div class="val" id="v-gastos">R$ 0,00</div>
+      <div>Saldo do Mês</div><div class="val" id="v-saldo">R$ 0,00</div>
+      <div>% da Renda Comprometida</div><div class="val" id="v-pct">0%</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Gastos Fixos por Categoria</h2>
+    <table class="cat-table" id="tbl-fixo"></table>
+  </div>
+
+  <div class="card">
+    <h2>Gastos Variáveis por Categoria</h2>
+    <table class="cat-table" id="tbl-var"></table>
+  </div>
+</main>
+<script src="app.js"></script>
+<script>
+requireAuth();
+
+const mesEl = document.getElementById("mes");
+const anoEl = document.getElementById("ano");
+MESES.forEach((m, i) => mesEl.appendChild(new Option(m, i + 1)));
+const anoAtual = new Date().getFullYear();
+for (let a = anoAtual - 1; a <= anoAtual + 1; a++) anoEl.appendChild(new Option(a, a));
+mesEl.value = new Date().getMonth() + 1;
+anoEl.value = anoAtual;
+
+mesEl.addEventListener("change", carregar);
+anoEl.addEventListener("change", carregar);
+
+function somaPorCategoria(itens, tipo) {
+  const mapa = {};
+  itens.filter(i => i.tipo === tipo).forEach(i => {
+    mapa[i.categoria] = (mapa[i.categoria] || 0) + i.valor;
+  });
+  return mapa;
+}
+
+function renderTabela(el, categoriasBase, mapa) {
+  el.innerHTML = categoriasBase.map(c => `
+    <tr><td>${c}</td><td class="val">${formatBRL(mapa[c] || 0)}</td></tr>
+  `).join("");
+}
+
+async function carregar() {
+  const mes = mesEl.value, ano = anoEl.value;
+  const res = await apiFetch(`/api/lancamentos?mes=${mes}&ano=${ano}`);
+  const itens = await res.json();
+
+  const totalRenda = itens.filter(i => i.tipo === "Renda").reduce((s, i) => s + i.valor, 0);
+  const totalFixo = itens.filter(i => i.tipo === "Gasto Fixo").reduce((s, i) => s + i.valor, 0);
+  const totalVar = itens.filter(i => i.tipo === "Gasto Variável").reduce((s, i) => s + i.valor, 0);
+  const totalGastos = totalFixo + totalVar;
+  const saldo = totalRenda - totalGastos;
+  const pct = totalRenda ? (totalGastos / totalRenda) : 0;
+
+  document.getElementById("v-renda").textContent = formatBRL(totalRenda);
+  document.getElementById("v-fixo").textContent = formatBRL(totalFixo);
+  document.getElementById("v-var").textContent = formatBRL(totalVar);
+  document.getElementById("v-gastos").textContent = formatBRL(totalGastos);
+  const saldoEl = document.getElementById("v-saldo");
+  saldoEl.textContent = formatBRL(saldo);
+  saldoEl.className = "val " + (saldo >= 0 ? "saldo-pos" : "saldo-neg");
+  document.getElementById("v-pct").textContent = (pct * 100).toFixed(1) + "%";
+
+  renderTabela(document.getElementById("tbl-fixo"), CATEGORIAS["Gasto Fixo"], somaPorCategoria(itens, "Gasto Fixo"));
+  renderTabela(document.getElementById("tbl-var"), CATEGORIAS["Gasto Variável"], somaPorCategoria(itens, "Gasto Variável"));
+}
+
+carregar();
+</script>
+</body>
+</html>

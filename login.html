@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar - Controle Financeiro</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Controle Financeiro</h1>
+</header>
+<main>
+  <div class="card">
+    <h2>Digite o PIN da família</h2>
+    <label for="pin">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" autofocus>
+    <button class="primary" onclick="entrar()">Entrar</button>
+    <div id="msg" class="msg"></div>
+  </div>
+</main>
+<script src="app.js"></script>
+<script>
+async function entrar() {
+  const pin = document.getElementById("pin").value.trim();
+  const msg = document.getElementById("msg");
+  if (!pin) return;
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pin })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      localStorage.setItem("cf_token", data.token);
+      window.location.href = "index.html";
+    } else {
+      msg.className = "msg err";
+      msg.textContent = "PIN incorreto.";
+    }
+  } catch (e) {
+    msg.className = "msg err";
+    msg.textContent = "Erro ao conectar. Tente novamente.";
+  }
+}
+document.getElementById("pin").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") entrar();
+});
+</script>
+</body>
+</html>
